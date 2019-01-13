@@ -28,6 +28,9 @@ options:
     - Magento version.
     choices: [ 1, 2 ]
     default: 2
+  cache:
+    description:
+    - Space-separated list of cache types or omit to apply to all cache types.
 
 '''
 
@@ -47,19 +50,79 @@ def run_magento(module, cmd):
 
     return rc, ' '.join(out.splitlines()), err
 
+def check_command(module, command, args=None):
+  valid_commands = {
+    'cache:clean',
+    'cache:enable',
+    'cache:disable',
+    'cache:flush',
+    'cache:status',
+    'setup:performance:generate-fixtures',
+    'setup:static-content:deploy',
+    'setup:db-schema:upgrade',
+    'setup:store-config:set',
+    'setup:db-data:upgrade',
+    'setup:config:set',
+    'setup:di:compile',
+    'setup:db:status',
+    'setup:uninstall',
+    'setup:cron:run',
+    'setup:rollback',
+    'setup:install',
+    'setup:upgrade',
+    'setup:backup'
+  }
+
+  valid_cache_commands = {
+    'cache:clean',
+    'cache:enable',
+    'cache:disable',
+    'cache:flush'
+  }
+
+  valid_cache_types = {
+    'config',
+    'layout',
+    'block_html',
+    'collections',
+    'reflection',
+    'db_ddl',
+    'eav',
+    'customer_notification',
+    'config_integration',
+    'config_integration_api',
+    'full_page',
+    'config_webservice',
+    'translate'
+  }
+
+  if not command in valid_commands:
+    module.fail_json(msg=to_native("Unknown command %s" %(command)))
+
+  if command in valid_cache_commands:
+    if "cache" in args:
+      caches = args['cache'].split(',')
+      for cache in caches:
+        if cache not in valid_cache_types:
+          module.fail_json(msg=to_native("Invalid cache type %s" %(cache)))
+
+  return True
+
 def main():
     module = AnsibleModule(
         argument_spec = dict(
             command     = dict(aliases=['action']),
             cwd         = dict(type='path'),
-            version     = dict(default='2')
+            version     = dict(default='2'),
+            cache       = dict(default='')
         )
     )
     command = module.params.get('command')
     cwd = module.params.get('cwd')
     version = module.params.get('version')
+    cache = module.params.get('cache')
 
-    m = ""
+    res = check_command(module, command, dict( cache=cache ))
 
     if cwd:
       try:
@@ -69,7 +132,7 @@ def main():
         module.fail_json(msg=to_native(e))
 
 
-    rc, out, err = run_magento(module, "bin/magento %s" %(command))
+    rc, out, err = run_magento(module, "bin/magento %s%s" %(command))
 
     module.exit_json(version=version, command=command, msg=out, rc=rc, changed=True)
 
